@@ -4,14 +4,19 @@ from tkinter import ttk
 import pygetwindow as gw
 import win32gui
 import win32con
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageTk
 from pystray import Icon as icon, MenuItem as item, Menu
 
 def create_image():
     # Create a simple black and white image for the tray icon.
-    image = Image.new('RGB', (64, 64), color='white')
+    image = Image.new('RGB', (64, 64), color='black')
     dc = ImageDraw.Draw(image)
-    dc.rectangle((8, 8, 56, 56), fill='black')
+
+    # Draw a black "X" on the white background
+    # Drawing two diagonal lines from the corners of a square inside the image
+    dc.line((8, 8, 56, 56), fill='white', width=5)  # Diagonal from top-left to bottom-right
+    dc.line((8, 56, 56, 8), fill='white', width=5)  # Diagonal from bottom-left to top-right
+
     return image
 
 def make_borderless_fullscreen(window_title):
@@ -58,12 +63,22 @@ def exit_application(icon, item):
 def run_tray_icon():
     tray = icon('Window Manager', create_image(), menu=Menu(item('Toggle Window', toggle_window_visibility), item('Exit', exit_application)))
     tray.run()
+    
+def set_icon(window, image):
+    # Convert PIL image to PhotoImage and set as Tkinter window icon
+    photo = ImageTk.PhotoImage(image)
+    window.iconphoto(False, photo)
+    return photo  # Return photo to keep a reference
 
 # Setup the main window
 root = tk.Tk()
 root.title("Window Manager")
-root.geometry("300x200")
+root.geometry("300x300")
 root.protocol("WM_DELETE_WINDOW", root.withdraw)  # Minimize to tray instead of closing
+
+# Generate the icon image and set it as the window icon
+icon_image = create_image()
+icon_photo = set_icon(root, icon_image)
 
 listbox = tk.Listbox(root, width=60, height=10)
 listbox.pack(pady=20)
