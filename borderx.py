@@ -27,6 +27,7 @@ class ICONINFO(ctypes.Structure):
         ("hbmColor", HBITMAP)
     ]
 
+
 class RGBQUAD(ctypes.Structure):
     _fields_ = [
         ("rgbBlue", BYTE),
@@ -34,6 +35,7 @@ class RGBQUAD(ctypes.Structure):
         ("rgbRed", BYTE),
         ("rgbReserved", BYTE),
     ]
+
 
 class BITMAPINFOHEADER(ctypes.Structure):
     _fields_ = [
@@ -49,6 +51,7 @@ class BITMAPINFOHEADER(ctypes.Structure):
         ("biClrUsed", DWORD),
         ("biClrImportant", DWORD)
     ]
+
 
 class BITMAPINFO(ctypes.Structure):
     _fields_ = [
@@ -94,6 +97,7 @@ class IconSize(Enum):
         }
         return size_table[size]
 
+
 def create_image():
     # Create a simple black and white image for the tray icon.
     image = Image.new('RGB', (64, 64), color='black')
@@ -105,6 +109,7 @@ def create_image():
     dc.line((8, 56, 56, 8), fill='white', width=5)  # Diagonal from bottom-left to top-right
 
     return image
+
 
 def extract_icon(filename: str, size: IconSize) -> Array[c_char]:
     """
@@ -165,9 +170,11 @@ def get_open_windows():
     windows = gw.getAllWindows()
     return windows
 
+
 def get_process_id(hwnd):
     _, pid = win32process.GetWindowThreadProcessId(hwnd)
     return pid
+
 
 def is_system_process(pid):
     try:
@@ -176,12 +183,14 @@ def is_system_process(pid):
     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
         return True  # Treat as system process if it fails to retrieve process information
 
+
 def get_executable_path(pid):
     try:
         process = psutil.Process(pid)
         return process.exe()
     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
         return None
+
 
 def load_icon(executable_path):
     # Extract icon from executable path
@@ -195,6 +204,7 @@ def load_icon(executable_path):
         return ImageTk.PhotoImage(image=image)
     else:
         return None
+
 
 def populate_list():
     tree.delete(*tree.get_children())
@@ -214,6 +224,7 @@ def populate_list():
                     # Insert program with icon into the treeview
                     tree.insert('', 'end', values=(window.title,), image=icon, tags=('custom',))
 
+
 def make_borderless_fullscreen(window_title):
     try:
         screen_width = root.winfo_screenwidth()
@@ -228,15 +239,18 @@ def make_borderless_fullscreen(window_title):
     except Exception as e:
         print(f"Error: {e}")
 
+
 def on_select(event):
     selected_item = event.widget.selection()[0]
     global selected_window
     selected_window = event.widget.item(selected_item, 'values')[0]
     print("Selected program:", selected_window)
 
+
 def on_button_click():
     make_borderless_fullscreen(selected_window)
     print(f'Made "{selected_window}" borderless and fullscreen.')
+
 
 def toggle_window_visibility(icon, item=None):
     if root.state() == 'withdrawn':
@@ -244,13 +258,22 @@ def toggle_window_visibility(icon, item=None):
     else:
         root.withdraw()  # Hide the window
 
+
 def exit_application(icon, item):
     icon.stop()  # Stop the tray icon
-    root.after(0, root.quit)  # Schedule the root.quit to be run on the main thread
+
+    # Define a function to call root.quit() on the main thread
+    def quit_on_main_thread():
+        root.quit()
+
+    # Schedule the quit_on_main_thread function to be run on the main thread
+    root.after(0, quit_on_main_thread)
+
 
 def run_tray_icon():
     tray = icon('Window Manager', create_image(), menu=Menu(item('Toggle Window', toggle_window_visibility), item('Exit', exit_application)))
     tray.run()
+
 
 def set_icon(window, image):
     # Convert PIL image to PhotoImage and set as Tkinter window icon
@@ -258,11 +281,12 @@ def set_icon(window, image):
     window.iconphoto(False, photo)
     return photo  # Return photo to keep a reference
 
+
 def main():
     # Create main window
     global root
     root = tk.Tk()
-    root.title("Program List")
+    root.title("BorderX")
 
     root.geometry("400x400")
     # Generate the icon image and set it as the window icon
@@ -301,6 +325,7 @@ def main():
 
     # Start Tkinter event loop
     root.mainloop()
+
 
 if __name__ == "__main__":
     main()
