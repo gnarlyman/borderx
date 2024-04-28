@@ -6,10 +6,13 @@ from ctypes import c_int, c_void_p, POINTER
 from ctypes.wintypes import *
 from enum import Enum
 import ctypes
-from PIL import Image, ImageTk
-from io import BytesIO
+from PIL import Image, ImageTk, ImageDraw
 import tkinter as tk
 from tkinter import ttk
+import win32gui
+import win32con
+from pystray import Icon as icon, MenuItem as item, Menu
+import threading
 
 BI_RGB = 0
 DIB_RGB_COLORS = 0
@@ -91,6 +94,17 @@ class IconSize(Enum):
         }
         return size_table[size]
 
+def create_image():
+    # Create a simple black and white image for the tray icon.
+    image = Image.new('RGB', (64, 64), color='black')
+    dc = ImageDraw.Draw(image)
+
+    # Draw a black "X" on the white background
+    # Drawing two diagonal lines from the corners of a square inside the image
+    dc.line((8, 8, 56, 56), fill='white', width=5)  # Diagonal from top-left to bottom-right
+    dc.line((8, 56, 56, 8), fill='white', width=5)  # Diagonal from bottom-left to top-right
+
+    return image
 
 def extract_icon(filename: str, size: IconSize) -> Array[c_char]:
     """
@@ -169,21 +183,6 @@ def get_executable_path(pid):
     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
         return None
 
-def main():
-    open_windows = get_open_windows()
-    for window in open_windows:
-        hwnd = window._hWnd
-        pid = get_process_id(hwnd)
-        if not is_system_process(pid):
-            executable_path = get_executable_path(pid)
-            if executable_path:
-                print(f"Title: {window.title}, Executable Path: {executable_path}")
-                result = extract_icon(executable_path, IconSize.SMALL)
-                if result is not None:
-                    print(result)
-                else:
-                    print("No small icon found in the executable")
-
 def load_icon(executable_path):
     # Extract icon from executable path
     icon_data = extract_icon(executable_path, IconSize.SMALL)
@@ -197,7 +196,8 @@ def load_icon(executable_path):
     else:
         return None
 
-def populate_list(tree):
+def populate_list():
+    tree.delete(*tree.get_children())
     open_windows = get_open_windows()
     for window in open_windows:
         hwnd = window._hWnd
@@ -214,15 +214,63 @@ def populate_list(tree):
                     # Insert program with icon into the treeview
                     tree.insert('', 'end', values=(window.title,), image=icon, tags=('custom',))
 
+def make_borderless_fullscreen(window_title):
+    try:
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
+        window = gw.getWindowsWithTitle(window_title)[0]
+        hwnd = window._hWnd
+        style = win32gui.GetWindowLong(hwnd, win32con.GWL_STYLE)
+        style &= ~(win32con.WS_CAPTION | win32con.WS_THICKFRAME)
+        win32gui.SetWindowLong(hwnd, win32con.GWL_STYLE, style)
+        win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0, 0, screen_width, screen_height, win32con.SWP_FRAMECHANGED)
+        print(f'Made "{window_title}" borderless and fullscreen.')
+    except Exception as e:
+        print(f"Error: {e}")
+
+def on_select(event):
+    selected_item = event.widget.selection()[0]
+    global selected_window
+    selected_window = event.widget.item(selected_item, 'values')[0]
+    print("Selected program:", selected_window)
+
+def on_button_click():
+    make_borderless_fullscreen(selected_window)
+    print(f'Made "{selected_window}" borderless and fullscreen.')
+
+def toggle_window_visibility(icon, item=None):
+    if root.state() == 'withdrawn':
+        root.deiconify()  # Show the window
+    else:
+        root.withdraw()  # Hide the window
+
+def exit_application(icon, item):
+    icon.stop()  # Stop the tray icon
+    root.after(0, root.quit)  # Schedule the root.quit to be run on the main thread
+
+def run_tray_icon():
+    tray = icon('Window Manager', create_image(), menu=Menu(item('Toggle Window', toggle_window_visibility), item('Exit', exit_application)))
+    tray.run()
+
+def set_icon(window, image):
+    # Convert PIL image to PhotoImage and set as Tkinter window icon
+    photo = ImageTk.PhotoImage(image)
+    window.iconphoto(False, photo)
+    return photo  # Return photo to keep a reference
 
 def main():
     # Create main window
+    global root
     root = tk.Tk()
     root.title("Program List")
 
     root.geometry("400x400")
+    # Generate the icon image and set it as the window icon
+    icon_image = create_image()
+    icon_photo = set_icon(root, icon_image)
 
     # Create treeview widget
+    global tree
     tree = ttk.Treeview(root)
     tree['columns'] = ('Icon', 'Window')  # Two columns: Icon and Program
     tree.heading('#0', text='')  # Heading for icon column
@@ -230,17 +278,26 @@ def main():
     tree.column('#0', width=50, stretch=False)  # Set width of icon column
     tree.column('#1', stretch=True)  # Set stretch=True to make the program column fill the window width
     tree.pack(fill='both', expand=True)
+    tree.bind('<<TreeviewSelect>>', on_select)
+    refresh_button = ttk.Button(root, text="Refresh Window List", command=populate_list)
+    refresh_button.pack(pady=5)
+    borderless_button = ttk.Button(root, text="Make Borderless Fullscreen", command=on_button_click)
+    borderless_button.pack(pady=5)
 
     # Function to update column width based on window width
     def update_column_width(event):
-        width = root.winfo_width() - 60
+        width = root.winfo_width()
         tree.column('#1', width=width)
 
     # Bind window resize event to update_column_width function
     root.bind("<Configure>", update_column_width)
 
     # Populate treeview with program list and icons
-    populate_list(tree)
+    populate_list()
+
+    # Run the tray icon in a separate thread
+    thread = threading.Thread(target=run_tray_icon)
+    thread.start()
 
     # Start Tkinter event loop
     root.mainloop()
