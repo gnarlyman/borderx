@@ -25,10 +25,11 @@ jobs:
         # Using PowerShell for string manipulation on Windows
         $branchName = $env:GITHUB_REF -replace 'refs/tags/', ''
         $imageTag = $branchName -replace '/', '-'
-        Write-Host "BRANCH_NAME=$branchName" >> $env:GITHUB_ENV
-        Write-Host "IMAGE_TAG=$imageTag" >> $env:GITHUB_ENV
-        Write-Host "GITHUB_REF=$env:GITHUB_REF"
-        Write-Host "IMAGE_TAG=$imageTag"
+        echo "BRANCH_NAME=$branchName" >> $env:GITHUB_ENV
+        echo "IMAGE_TAG=$imageTag" >> $env:GITHUB_ENV
+        echo "GITHUB_REF=$env:GITHUB_REF"
+        echo "IMAGE_TAG=$imageTag"
+      shell: pwsh
 
     - name: Install dependencies
       run: |
@@ -42,5 +43,5 @@ jobs:
     - name: Upload the executable as an artifact
       uses: actions/upload-artifact@v4
       with:
-        name: borderx-${{ env.IMAGE_TAG }}
+        name: borderx-${{ steps.vars.outputs.IMAGE_TAG }}
         path: dist/*.exe
