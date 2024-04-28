@@ -22,12 +22,13 @@ jobs:
     - name: Extract branch name and set image tag
       id: vars
       run: |
-        BRANCH_NAME=${GITHUB_REF#refs/tags/}
-        IMAGE_TAG=$(echo $BRANCH_NAME | tr '/' '-')
-        echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
-        echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
-        echo "GITHUB_REF=$GITHUB_REF"
-        echo "IMAGE_TAG=$IMAGE_TAG"
+        # Using PowerShell for string manipulation on Windows
+        $branchName = $env:GITHUB_REF -replace 'refs/tags/', ''
+        $imageTag = $branchName -replace '/', '-'
+        Write-Host "BRANCH_NAME=$branchName" >> $env:GITHUB_ENV
+        Write-Host "IMAGE_TAG=$imageTag" >> $env:GITHUB_ENV
+        Write-Host "GITHUB_REF=$env:GITHUB_REF"
+        Write-Host "IMAGE_TAG=$imageTag"
 
     - name: Install dependencies
       run: |
