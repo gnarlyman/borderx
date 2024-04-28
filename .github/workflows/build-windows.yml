@@ -29,6 +29,7 @@ jobs:
         echo "IMAGE_TAG=$imageTag" >> $env:GITHUB_ENV
         echo "GITHUB_REF=$env:GITHUB_REF"
         echo "IMAGE_TAG=$imageTag"
+        echo $imageTag > image_tag.txt
       shell: pwsh
 
     - name: Install dependencies
@@ -43,5 +44,5 @@ jobs:
     - name: Upload the executable as an artifact
       uses: actions/upload-artifact@v4
       with:
-        name: borderx-${{ steps.vars.outputs.IMAGE_TAG }}
+        name: borderx-$(cat image_tag.txt)
         path: dist/*.exe
