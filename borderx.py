@@ -17,6 +17,8 @@ import threading
 BI_RGB = 0
 DIB_RGB_COLORS = 0
 
+# Define a dictionary to track borderless state for each window
+borderless_windows = {}
 
 class ICONINFO(ctypes.Structure):
     _fields_ = [
@@ -232,24 +234,54 @@ def make_borderless_fullscreen(window_title):
         window = gw.getWindowsWithTitle(window_title)[0]
         hwnd = window._hWnd
         style = win32gui.GetWindowLong(hwnd, win32con.GWL_STYLE)
-        style &= ~(win32con.WS_CAPTION | win32con.WS_THICKFRAME)
-        win32gui.SetWindowLong(hwnd, win32con.GWL_STYLE, style)
-        win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0, 0, screen_width, screen_height, win32con.SWP_FRAMECHANGED)
-        print(f'Made "{window_title}" borderless and fullscreen.')
+
+        # Check if the window is already borderless
+        if borderless_windows.get(hwnd, False):
+            # If already borderless, revert the style changes
+            style |= (win32con.WS_CAPTION | win32con.WS_THICKFRAME)
+            win32gui.SetWindowLong(hwnd, win32con.GWL_STYLE, style)
+            win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0, 0, screen_width, screen_height,
+                                  win32con.SWP_FRAMECHANGED)
+            borderless_windows[hwnd] = False
+            print(f'Restored borders for "{window_title}".')
+        else:
+            # If not borderless, make it borderless
+            style &= ~(win32con.WS_CAPTION | win32con.WS_THICKFRAME)
+            win32gui.SetWindowLong(hwnd, win32con.GWL_STYLE, style)
+            win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0, 0, screen_width, screen_height,
+                                  win32con.SWP_FRAMECHANGED)
+            borderless_windows[hwnd] = True
+            print(f'Made "{window_title}" borderless and fullscreen.')
     except Exception as e:
         print(f"Error: {e}")
 
-
 def on_select(event):
-    selected_item = event.widget.selection()[0]
     global selected_window
+    selected_item = event.widget.selection()[0]
     selected_window = event.widget.item(selected_item, 'values')[0]
+
+    # Update button text based on borderless state
+    if borderless_windows.get(selected_window, False):
+        borderless_button.config(text="Restore Borders")
+    else:
+        borderless_button.config(text="Make Borderless Fullscreen")
+
     print("Selected program:", selected_window)
 
 
 def on_button_click():
-    make_borderless_fullscreen(selected_window)
-    print(f'Made "{selected_window}" borderless and fullscreen.')
+    global selected_window
+    if selected_window:
+        make_borderless_fullscreen(selected_window)
+
+        # Update button text based on borderless state
+        if borderless_button.cget("text") == "Make Borderless Fullscreen":
+            borderless_button.config(text="Restore Borders")
+        else:
+            borderless_button.config(text="Make Borderless Fullscreen")
+
+        print(f'Window "{selected_window}" borderless state toggled.')
+
 
 
 def toggle_window_visibility(icon, item=None):
@@ -305,6 +337,8 @@ def main():
     tree.bind('<<TreeviewSelect>>', on_select)
     refresh_button = ttk.Button(root, text="Refresh Window List", command=populate_list)
     refresh_button.pack(pady=5)
+
+    global borderless_button
     borderless_button = ttk.Button(root, text="Make Borderless Fullscreen", command=on_button_click)
     borderless_button.pack(pady=5)
 
